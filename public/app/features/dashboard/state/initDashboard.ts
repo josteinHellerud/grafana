@@ -245,19 +245,21 @@ export function initDashboard(args: InitDashboardArgs): ThunkResult<void> {
 }
 
 function addScriptHook(dispatch: ThunkDispatch) {
-  return function(model: VariableWithOptions) {
-    const identifier = { id: model.id, type: model.type };
-    dispatch(
-      addVariable(
-        toVariablePayload(identifier, {
-          global: model.global,
-          index: model.index,
-          model: model,
-        })
-      )
-    );
+  return function(models: VariableWithOptions[]) {
+    models.map(model => {
+      const identifier = { id: model.id, type: model.type };
+      dispatch(
+        addVariable(
+          toVariablePayload(identifier, {
+            global: model.global,
+            index: model.index,
+            model: model,
+          })
+        )
+      );
 
-    dispatch(onEditorAdd(identifier));
+      dispatch(onEditorAdd(identifier));
+    });
   };
 }
 
