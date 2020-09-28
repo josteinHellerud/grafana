@@ -29,6 +29,11 @@ import { DashboardModel } from './DashboardModel';
 import { DataQuery, locationUtil } from '@grafana/data';
 import { initVariablesTransaction } from '../../variables/state/actions';
 import { emitDashboardViewEvent } from './analyticsProcessor';
+import { addVariable } from 'app/features/variables/state/sharedReducer';
+import variableScriptHook from './scripthookpoc';
+import { VariableWithOptions } from 'app/features/variables/types';
+import { toVariablePayload } from 'app/features/variables/state/types';
+import { onEditorAdd } from 'app/features/variables/editor/actions';
 
 export interface InitDashboardArgs {
   $injector: any;
@@ -188,7 +193,6 @@ export function initDashboard(args: InitDashboardArgs): ThunkResult<void> {
 
     // template values service needs to initialize completely before the rest of the dashboard can load
     await dispatch(initVariablesTransaction(args.urlUid!, dashboard));
-
     if (getState().templating.transaction.uid !== args.urlUid) {
       // if a previous dashboard has slow running variable queries the batch uid will be the new one
       // but the args.urlUid will be the same as before initVariablesTransaction was called so then we can't continue initializing
@@ -234,6 +238,26 @@ export function initDashboard(args: InitDashboardArgs): ThunkResult<void> {
 
     // yay we are done
     dispatch(dashboardInitCompleted(dashboard));
+
+    //TODO jostein: Mulig det er best å flytte ut av denne filen.
+    await variableScriptHook(addScriptHook(dispatch), getState().templating.variables);
+  };
+}
+
+function addScriptHook(dispatch: ThunkDispatch) {
+  return function(model: VariableWithOptions) {
+    const identifier = { id: model.id, type: model.type };
+    dispatch(
+      addVariable(
+        toVariablePayload(identifier, {
+          global: model.global,
+          index: model.index,
+          model: model,
+        })
+      )
+    );
+
+    dispatch(onEditorAdd(identifier));
   };
 }
 
