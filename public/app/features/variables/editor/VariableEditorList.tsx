@@ -3,10 +3,35 @@ import { IconButton } from '@grafana/ui';
 import { selectors } from '@grafana/e2e-selectors';
 
 import EmptyListCTA from '../../../core/components/EmptyListCTA/EmptyListCTA';
-import { QueryVariableModel, VariableModel } from '../types';
-import { toVariableIdentifier, VariableIdentifier } from '../state/types';
+import { QueryVariableModel, TextBoxVariableModel, VariableHide, VariableModel, VariableWithOptions } from '../types';
+import {
+  AddVariable,
+  NEW_VARIABLE_ID,
+  toVariableIdentifier,
+  toVariablePayload,
+  VariableIdentifier,
+  VariablePayload,
+} from '../state/types';
+import { CodeEditor } from '@grafana/ui';
+import Interpreter from 'js-interpreter';
+import { VariablesState } from '../state/variablesReducer';
+import { PayloadAction, ThunkAction } from '@reduxjs/toolkit';
+import { StoreState, ThunkResult } from 'app/types';
+import { VariableType } from '@grafana/data';
 
 export interface Props {
+  addVariable: (addVariable: VariablePayload<any>) => void;
+  onEditorAdd: (
+    identifier: VariableIdentifier
+  ) => ThunkAction<
+    void,
+    StoreState,
+    undefined,
+    {
+      payload: any;
+      type: string;
+    }
+  >;
   variables: VariableModel[];
   onAddClick: (event: MouseEvent<HTMLAnchorElement>) => void;
   onEditClick: (identifier: VariableIdentifier) => void;
@@ -21,6 +46,9 @@ enum MoveType {
 }
 
 export class VariableEditorList extends PureComponent<Props> {
+  testvalue = '';
+  testname = '';
+
   onEditClick = (event: MouseEvent, identifier: VariableIdentifier) => {
     event.preventDefault();
     this.props.onEditClick(identifier);
@@ -39,6 +67,62 @@ export class VariableEditorList extends PureComponent<Props> {
   onRemoveVariable = (event: MouseEvent, identifier: VariableIdentifier) => {
     event.preventDefault();
     this.props.onRemoveVariable(identifier);
+  };
+
+  initFunc = (interpreter: any, globalObject: any) => {
+    interpreter.setProperty(
+      globalObject,
+      'add',
+      interpreter.createNativeFunction((text: any) => {
+        const jsonValue = JSON.parse(text);
+        this.testvalue = jsonValue.value;
+        this.testname = jsonValue.name;
+      })
+    );
+
+    interpreter.setProperty(
+      globalObject,
+      'getInput',
+      interpreter.createNativeFunction(() => {
+        return JSON.stringify(input);
+      })
+    );
+  };
+
+  runToCompletion = (interpreter: any) => {
+    return () => {
+      if (interpreter.run()) {
+        // Ran until an async call.  Give this call a chance to run.
+        // Then start running again later.
+        setTimeout(this.runToCompletion, 10);
+      }
+    };
+  };
+
+  handleScriptHookSave = (code: string) => {
+    const interpreter = new Interpreter(code, this.initFunc);
+    const runner = this.runToCompletion(interpreter);
+    runner();
+
+    const type: VariableType = 'textbox';
+    const id = NEW_VARIABLE_ID;
+    const identifier = { type, id };
+
+    this.addScriptHook([variableModel(this.testname, identifier, this.testvalue)]);
+  };
+
+  addScriptHook = (models: VariableWithOptions[]) => {
+    return models.map(model => {
+      const identifier = { id: model.id, type: model.type };
+      this.props.addVariable(
+        toVariablePayload(identifier, {
+          global: model.global,
+          index: model.index,
+          model: model,
+        })
+      );
+      this.props.onEditorAdd(identifier);
+    });
   };
 
   render() {
@@ -160,8 +244,50 @@ export class VariableEditorList extends PureComponent<Props> {
               </table>
             </div>
           )}
+          <br />
+          <h4>Script hooks:</h4>
+          <CodeEditor
+            value=""
+            onBlur={this.handleScriptHookSave}
+            onSave={this.handleScriptHookSave}
+            language="javascript"
+            showMiniMap={false}
+            showLineNumbers={false}
+            height="200px"
+            //getSuggestions={getSuggestions}
+          />
         </div>
       </div>
     );
   }
 }
+const input = {
+  hei: 'hallo',
+  banan: 'skall',
+  fiske: 'bolle',
+};
+
+interface Identifier {
+  type: VariableType;
+  id: string;
+}
+
+const variableModel = (name: string, identifier: Identifier, value: string) => {
+  const model: TextBoxVariableModel = {
+    ...identifier,
+    name: name,
+    label: null,
+    index: 10,
+    skipUrlSync: true,
+    hide: VariableHide.dontHide,
+    global: false,
+    current: {
+      selected: false,
+      value: value,
+      text: value,
+    },
+    query: value,
+    options: [],
+  };
+  return model;
+};

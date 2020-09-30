@@ -11,7 +11,8 @@ import { connectWithStore } from '../../../core/utils/connectWithReduxStore';
 import { getEditorVariables } from '../state/selectors';
 import { VariableModel } from '../types';
 import { switchToEditMode, switchToListMode, switchToNewMode } from './actions';
-import { changeVariableOrder, duplicateVariable, removeVariable } from '../state/sharedReducer';
+import { changeVariableOrder, duplicateVariable, removeVariable, addVariable } from '../state/sharedReducer';
+import { onEditorAdd } from 'app/features/variables/editor/actions';
 
 interface OwnProps {}
 
@@ -21,6 +22,8 @@ interface ConnectedProps {
 }
 
 interface DispatchProps {
+  addVariable: typeof addVariable;
+  onEditorAdd: typeof onEditorAdd;
   changeVariableOrder: typeof changeVariableOrder;
   duplicateVariable: typeof duplicateVariable;
   removeVariable: typeof removeVariable;
@@ -109,6 +112,8 @@ class VariableEditorContainerUnconnected extends PureComponent<Props> {
 
         {!variableToEdit && (
           <VariableEditorList
+            addVariable={this.props.addVariable}
+            onEditorAdd={this.props.onEditorAdd}
             variables={this.props.variables}
             onAddClick={this.onNewVariable}
             onEditClick={this.onEditVariable}
@@ -129,6 +134,8 @@ const mapStateToProps: MapStateToProps<ConnectedProps, OwnProps, StoreState> = s
 });
 
 const mapDispatchToProps: MapDispatchToProps<DispatchProps, OwnProps> = {
+  addVariable,
+  onEditorAdd,
   changeVariableOrder,
   duplicateVariable,
   removeVariable,
